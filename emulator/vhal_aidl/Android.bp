@@ -41,6 +41,7 @@ cc_binary {
         "EmulatorPipeComm",
         "EmulatorSocketComm",
         "FakeVehicleHardware",
+        "SocketsVehicleHardware",
         "VehicleHalProtos",
         "android.hardware.automotive.vehicle@2.0-libproto-native",
         "android-automotive-large-parcelable-lib",

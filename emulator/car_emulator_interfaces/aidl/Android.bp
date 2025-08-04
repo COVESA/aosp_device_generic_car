@@ -33,6 +33,7 @@ aidl_interface {
             imports: [
                 "android.hardware.automotive.vehicle-V4",
                 "android.hardware.automotive.vehicle.property-V4",
+                "vendor.android.hardware.automotive.vehicle.property-V1",
             ],
         },
     ],

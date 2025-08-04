@@ -17,14 +17,14 @@
 #define LOG_TAG "EmulatedVehicleService"
 
 #include <DefaultVehicleHal.h>
-#include <EmulatedVehicleHardware.h>
+#include <SocketVehicleHardware.h>
 
 #include <android/binder_manager.h>
 #include <android/binder_process.h>
 #include <utils/Log.h>
 
 using ::android::hardware::automotive::vehicle::DefaultVehicleHal;
-using ::android::hardware::automotive::vehicle::fake::EmulatedVehicleHardware;
+using ::android::hardware::automotive::vehicle::SocketVehicleHardware;
 
 int main(int /* argc */, char* /* argv */[]) {
     ALOGI("Starting thread pool...");
@@ -34,7 +34,7 @@ int main(int /* argc */, char* /* argv */[]) {
     }
     ABinderProcess_startThreadPool();
 
-    std::unique_ptr<EmulatedVehicleHardware> hardware = std::make_unique<EmulatedVehicleHardware>();
+    std::unique_ptr<SocketVehicleHardware> hardware = std::make_unique<SocketVehicleHardware>();
     std::shared_ptr<DefaultVehicleHal> vhal =
             ::ndk::SharedRefBase::make<DefaultVehicleHal>(std::move(hardware));
 

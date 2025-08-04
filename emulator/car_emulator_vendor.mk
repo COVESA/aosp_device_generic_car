@@ -107,6 +107,11 @@ PRODUCT_COPY_FILES += \
     frameworks/native/data/etc/android.hardware.sensor.accelerometer_limited_axes_uncalibrated.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.sensor.accelerometer_limited_axes_uncalibrated.xml \
     frameworks/native/data/etc/android.hardware.sensor.gyroscope_limited_axes_uncalibrated.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.sensor.gyroscope_limited_axes_uncalibrated.xml \
 
+# Copy vhalmap configuration
+PRODUCT_COPY_FILES += \
+    device/generic/car/emulator/vhalmap/app_config.json:$(TARGET_COPY_OUT_VENDOR)/etc/vhalmap/app_config.json \
+    device/generic/car/emulator/vhalmap/value_map.json:$(TARGET_COPY_OUT_VENDOR)/etc/vhalmap/value_map.json
+
 # Additional selinux policy
 BOARD_SEPOLICY_DIRS += device/generic/car/common/sepolicy
 

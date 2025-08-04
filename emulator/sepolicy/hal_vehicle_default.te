@@ -3,5 +3,11 @@ allow hal_vehicle_default self:vsock_socket { connect create read write };
 # For communication between VHAL and the host
 typeattribute hal_vehicle_default hal_automotive_socket_exemption;
 
-allow hal_vehicle_default self:tcp_socket { create bind listen accept };
+allow hal_vehicle_default self:tcp_socket { create bind name_bind listen accept connect getattr read write getopt setopt };
 allow hal_vehicle_default node:tcp_socket { node_bind };
+allow hal_vehicle_default port:tcp_socket name_connect;
+
+allow hal_vehicle_default fwmarkd_socket:sock_file write;
+allow hal_vehicle_default netd:unix_stream_socket connectto;
+allow netd hal_vehicle_default:fd use;
+allow netd hal_vehicle_default:tcp_socket { read write getopt setopt };

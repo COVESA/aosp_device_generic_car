@@ -1,0 +1,5 @@
+{
+   "protocol": "websocket",
+   "serverIp": "10.0.2.2",
+   "serverPort": 8126
+}
