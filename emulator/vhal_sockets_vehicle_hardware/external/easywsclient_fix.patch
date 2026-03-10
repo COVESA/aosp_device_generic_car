@@ -1,0 +1,32 @@
+Subject: [PATCH] cstdint
+---
+Index: easywsclient.hpp
+<+>UTF-8
+===================================================================
+diff --git a/easywsclient.hpp b/easywsclient.hpp
+--- a/easywsclient.hpp	(revision afc1d8cfc584e0f1f4a77e8c0ce3e979d9fe7ce2)
++++ b/easywsclient.hpp	(date 1772799121545)
+@@ -10,11 +10,12 @@
+ 
+ #include <string>
+ #include <vector>
++#include <cstdint>
+ 
+ namespace easywsclient {
+ 
+-struct Callback_Imp { virtual void operator()(const std::string& message) = 0; };
+-struct BytesCallback_Imp { virtual void operator()(const std::vector<uint8_t>& message) = 0; };
++struct Callback_Imp { virtual ~Callback_Imp() {}; virtual void operator()(const std::string& message) = 0; };
++struct BytesCallback_Imp { virtual ~BytesCallback_Imp() {}; virtual void operator()(const std::vector<std::uint8_t>& message) = 0; };
+ 
+ class WebSocket {
+   public:
+@@ -31,7 +32,7 @@
+     virtual void poll(int timeout = 0) = 0; // timeout in milliseconds
+     virtual void send(const std::string& message) = 0;
+     virtual void sendBinary(const std::string& message) = 0;
+-    virtual void sendBinary(const std::vector<uint8_t>& message) = 0;
++    virtual void sendBinary(const std::vector<std::uint8_t>& message) = 0;
+     virtual void sendPing() = 0;
+     virtual void close() = 0;
+     virtual readyStateValues getReadyState() const = 0;
