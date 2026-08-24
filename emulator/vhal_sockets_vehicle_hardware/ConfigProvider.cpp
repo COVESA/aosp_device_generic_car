@@ -11,15 +11,14 @@ namespace vehicle {
 static const std::string STR_PROPERTY_ID("propertyId");
 static const std::string STR_ACCESS("access");
 static const std::string STR_CHANGE_MODE("changeMode");
-static const std::string STR_AREA_ID("areaId");
-static const std::string STR_SOURCE("source");
+static const std::string STR_AREA_TYPE("areaType");
+static const std::string STR_SOURCES("sources");
 static const std::string STR_PROTOCOL_TYPE("protocol");
 static const std::string STR_SERVER_IP("serverIp");
 static const std::string STR_SERVER_PORT("serverPort");
 static const std::string STR_PROPERTIES("properties");
 static const std::string STR_STANDARDS("standards");
 static const std::string STR_VENDORS("vendors");
-static const std::string STR_SOURCES("sources");
 static const std::string STR_FORMULA("formula");
 
 static const std::string CONFIG_DIR("/vendor/etc/vhalmap/");
@@ -61,16 +60,25 @@ bool ConfigProvider::tryLoadVhalProperties() {
 
     // Parse the value map
     int propertyId = configObject[STR_PROPERTY_ID].asInt();
-    int areaId = configObject[STR_AREA_ID].asInt();
-    std::string source = configObject[STR_SOURCE].asString();
+    Json::Value sources = configObject[STR_SOURCES];
+    std::vector<VehicleAreaConfig> areaConfigs;
 
-    PropIdAreaId propIdAreaId {
-      .propId = propertyId,
-      .areaId = areaId,
-    };
+    for (const auto& source: sources.getMemberNames()) {
+      auto areaId = sources[source].asInt();
+      PropIdAreaId propIdAreaId {
+        .propId = propertyId,
+        .areaId = areaId,
+      };
 
-    mMappedValues[propIdAreaId] = source;
-    ALOGI("VHAL properties mapped: %x(%d) %x %s", propertyId, propertyId, areaId, source.c_str());
+      mMappedValues[propIdAreaId] = source;
+      ALOGI("VHAL properties mapped: %x(%d) %x %s", propertyId, propertyId, areaId, source.c_str());
+
+      VehicleAreaConfig areaConfig = {
+        .areaId = areaId
+      };
+        
+      areaConfigs.push_back(areaConfig);
+    }
 
     // Parse the properties
     int access = configObject[STR_ACCESS].asInt();
@@ -79,6 +87,7 @@ bool ConfigProvider::tryLoadVhalProperties() {
       .prop = propertyId,
       .access = static_cast<VehiclePropertyAccess>(access),
       .changeMode = static_cast<VehiclePropertyChangeMode>(changeMode),
+      .areaConfigs = areaConfigs,
     };
     ALOGI("MapperConfig config loaded property: %x(%d)", propertyId, propertyId);
 

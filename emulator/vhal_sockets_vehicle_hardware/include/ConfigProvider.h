@@ -10,10 +10,12 @@
 
 #include <VehicleUtils.h>
 #include <aidl/android/hardware/automotive/vehicle/VehiclePropConfig.h>
+#include <aidl/android/hardware/automotive/vehicle/VehicleAreaConfig.h>
 #include <aidl/android/hardware/automotive/vehicle/VehiclePropertyAccess.h>
 #include <aidl/android/hardware/automotive/vehicle/VehiclePropertyChangeMode.h>
 
 using ::aidl::android::hardware::automotive::vehicle::VehiclePropConfig;
+using ::aidl::android::hardware::automotive::vehicle::VehicleAreaConfig;
 using ::aidl::android::hardware::automotive::vehicle::VehiclePropertyAccess;
 using ::aidl::android::hardware::automotive::vehicle::VehiclePropertyChangeMode;
 
