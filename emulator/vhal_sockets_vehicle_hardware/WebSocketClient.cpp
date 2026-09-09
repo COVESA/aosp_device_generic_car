@@ -4,6 +4,7 @@
 #include "CommonUtils.h"
 #include "utils/Log.h"
 
+#include <algorithm>
 #include <chrono>
 using Clock = std::chrono::high_resolution_clock;
 using Timepoint = std::chrono::time_point<Clock>;
@@ -19,7 +20,6 @@ static const std::string STR_WS_VALUE_SET("set");
 static const std::string STR_WS_VALUE_EVENT_SUB("event/sub");
 static const std::string STR_WS_VALUE_EVENT_UNSUB("event/unsub");
 static const std::string STR_WS_VALUE_STATUS_SUCCESS("success");
-static const std::string STR_WS_VALUE_STATUS_ERROR("error");
 static const std::string STR_WS_VALUE_STATUS("status");
 static const std::string STR_WS_VALUE_RESULT("result");
 static const std::string STR_WS_VALUE_PROPERTY("property");
@@ -47,6 +47,7 @@ WebSocketClient::WebSocketClient(const std::string& serverIp, const int serverPo
                 mWorkerThread.join();
               }
               mWorkerThread = std::thread(&WebSocketClient::awaitResponse, this);
+              resubscribeAll();
             } else {
               ALOGE("Connect failed, retrying in %d s", TIMEOUT_RECONNECT_SEC);
             }
@@ -75,7 +76,7 @@ WebSocketClient::~WebSocketClient() {
     ALOGI("Init thread not joinable");
   }
   ALOGI("Closing subscriptions");
-  closeSubscriptions();
+  WebSocketClient::closeSubscriptions();
   if (mWorkerThread.joinable()) {
     mWorkerThread.join();
   }
@@ -223,20 +224,43 @@ Response* WebSocketClient::sendSetValueSync(const std::string& propertyName, con
 }
 
 Response* WebSocketClient::sendSubscribeValueSync(const std::string& propertyName){
+  {
+    std::lock_guard<std::mutex> lock(mSubscriptionLock);
+    if (std::find(mSubscribedPaths.begin(), mSubscribedPaths.end(), propertyName)
+            != mSubscribedPaths.end()) {
+      return new WebSocketResponse(true, STR_RESPONSE_BODY_EMPTY);
+    }
+    mSubscribedPaths.push_back(propertyName);
+  }
+
   Json::Value request;
   request[STR_WS_VALUE_PROPERTY] = propertyName;
   request[STR_WS_VALUE_METHOD] = STR_WS_VALUE_EVENT_SUB;
   request[STR_WS_VALUE_REQUEST_ID] = UuidUtils::generateUuid();
 
-  // Store subscription
-  Subscription* subscription = new Subscription();
-  subscription->client = mSubscriptions.size() + 1;
-  subscription->propertyName = propertyName;
+  delete sendValueSync(request);
+  return new WebSocketResponse(true, STR_RESPONSE_BODY_EMPTY);
+}
+
+void WebSocketClient::resubscribeAll() {
+  std::vector<std::string> paths;
   {
     std::lock_guard<std::mutex> lock(mSubscriptionLock);
-    mSubscriptions.push(subscription);
+    paths = mSubscribedPaths;
   }
-  return sendValueSync(request);
+
+  if (paths.empty()) {
+    return;
+  }
+
+  ALOGI("Resubscribing %zu path(s) after connect", paths.size());
+  for (const auto& path : paths) {
+    Json::Value request;
+    request[STR_WS_VALUE_PROPERTY] = path;
+    request[STR_WS_VALUE_METHOD] = STR_WS_VALUE_EVENT_SUB;
+    request[STR_WS_VALUE_REQUEST_ID] = UuidUtils::generateUuid();
+    delete sendValueSync(request);
+  }
 }
 
 Response* WebSocketClient::sendUnsubscribeValueSync(const std::string& propertyName){
@@ -368,12 +392,15 @@ bool WebSocketClient::parseResponse(const std::string& data, Json::Value& respon
 }
 
 void WebSocketClient::closeSubscriptions() {
-  while (mSubscriptions.size() > 0) {
-    Subscription* subscription = mSubscriptions.front();
-    mSubscriptions.pop();
-    Response* response = sendUnsubscribeValueSync(subscription->propertyName);
+  std::vector<std::string> paths;
+  {
+    std::lock_guard<std::mutex> lock(mSubscriptionLock);
+    paths.swap(mSubscribedPaths);
+  }
+
+  for (const auto& path : paths) {
+    Response* response = sendUnsubscribeValueSync(path);
     delete response;
-    delete subscription;
   }
 }
 

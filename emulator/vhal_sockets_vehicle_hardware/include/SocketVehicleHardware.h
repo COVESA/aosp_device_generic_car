@@ -82,10 +82,7 @@ class SocketVehicleHardware : public IVehicleHardware {
 
     std::unique_ptr<const PropertyChangeCallback> mPropertyChangeEventCallback;
     std::unique_ptr<const PropertySetErrorCallback> propertySetErrorEventCallback;
-    std::unordered_map<std::string, bool> mSubscriptions;
-    bool mSubscribed;
-    std::unique_ptr<const std::function<void(std::vector<VehiclePropValue>)>> propertyChangeEventHandler;
-    std::unique_ptr<const std::function<void(std::unordered_map<std::string, bool>)>> propertySubscriptionStatusChange;
+    bool mSubscribed = false;
 
   private:
     void init();

@@ -3,6 +3,7 @@
 
 #include "ValueConverter.h"
 #include "ValueRequester.h"
+#include "GrpcClient.h"
 #include "WebSocketClient.h"
 #include "utils/Log.h"
 
@@ -27,7 +28,7 @@ ValueRequester::ValueRequester(
   std::shared_ptr<ConfigProvider> configProvider,
   int threadPoolSize)
   : mConfigProvider(configProvider) {
-  mClient = getClient();
+  createClients();
   mIsRequestsThreadPoolRunning = true;
   int threadsCount = threadPoolSize < THREAD_POOL_MIN_SIZE ? THREAD_POOL_MIN_SIZE : threadPoolSize;
   for (int thread = 0; thread < threadsCount; thread++) {
@@ -130,7 +131,6 @@ void ValueRequester::runRequestsExecutor(int /*executorId*/) {
 void ValueRequester::executeSetRequest(TypedRequest<SetValueRequest, SetValuesCallback>* request) {
   ALOGI("executeSetRequest");
   std::vector<SetValueResult> results;
-  std::vector<VehiclePropValue> updatedPropValues;
   for(auto& req : request->requests()) {
     SetValueResult result;
     result.status = StatusCode::NOT_AVAILABLE;
@@ -140,12 +140,14 @@ void ValueRequester::executeSetRequest(TypedRequest<SetValueRequest, SetValuesCa
       if (mappedSource.length() > 0) {
         std::string strValue;
         if (ValueConverter::toString(req.value, strValue)) {
-          Response* response = mClient->sendSetValueSync(mappedSource, strValue);
-          if (response->status()) {
-            ALOGI("Set property value successfully");
-            result.status = StatusCode::OK;
+          for (auto& client : mClients) {
+            Response* response = client->sendSetValueSync(mappedSource, strValue);
+            if (response->status()) {
+              ALOGI("Set property value successfully");
+              result.status = StatusCode::OK;
+            }
+            delete response;
           }
-          delete response;
         }
       }
     }
@@ -168,25 +170,29 @@ void ValueRequester::executeGetRequest(TypedRequest<GetValueRequest, GetValuesCa
     if (mConfigProvider->getValueInfo(req.prop.prop, req.prop.areaId, mappedSource)) {
 
       if (mappedSource.length() > 0) {
-        Response* response = mClient->sendGetValueSync(mappedSource);
-        if (response->status()) {
-          VehiclePropValue propValue;
-          propValue.areaId = req.prop.areaId;
-          propValue.prop = req.prop.prop;
-          propValue.timestamp = timestamp;
-          if (ValueConverter::fromString(response->body(), propValue)) {
-            ALOGI("Get value property ok");
+        // Only one server is expected to be running,
+        // so every connection is asked until one answers.
+        for (auto& client : mClients) {
+          Response* response = client->sendGetValueSync(mappedSource);
+          if (response->status()) {
+            VehiclePropValue propValue;
+            propValue.areaId = req.prop.areaId;
+            propValue.prop = req.prop.prop;
+            propValue.timestamp = timestamp;
+            if (ValueConverter::fromString(response->body(), propValue)) {
+              ALOGI("Get value property ok");
 
-            propValue.status = VehiclePropertyStatus::AVAILABLE;
-            result.prop = propValue;
-            result.status = StatusCode::OK;
-          } else {
-            ALOGE("Get value property cannot map");
+              propValue.status = VehiclePropertyStatus::AVAILABLE;
+              result.prop = propValue;
+              result.status = StatusCode::OK;
+            } else {
+              ALOGE("Get value property cannot map");
+            }
+            delete response;
+            break;
           }
-        } else {
-          ALOGE("Get value property cannot map");
+          delete response;
         }
-        delete response;
       } else {
         ALOGI("Get value property not mapped");
       }
@@ -205,27 +211,19 @@ void ValueRequester::executeSubscribeRequest(TypedRequest<SubscribeValueRequest,
   ALOGI("executeSubscribeRequest");
 
   std::unordered_map<std::string, bool> result;
-  std::vector<SubscribeValueRequest> unsubscribed;
   for (auto& req : request->requests()) {
-    Response* response = mClient->sendSubscribeValueSync(req.propertyName);
-    result[req.propertyName] = response->status();
-    if (!response->status()) {
-      unsubscribed.push_back({.propertyName = req.propertyName});
+    bool subscribed = false;
+    for (auto& client : mClients) {
+      Response* response = client->sendSubscribeValueSync(req.propertyName);
+      subscribed |= response->status();
+      delete response;
     }
-    delete response;
+    result[req.propertyName] = subscribed;
   }
 
   (*request->callback())(result);
-
-  if (unsubscribed.size() > 0) {
-    auto subRequest = std::make_unique<TypedRequest<SubscribeValueRequest, SubscribeValueCallback>>(ValueRequestType::Subscribe, request->callback(), unsubscribed);
-    registerRequest(subRequest.release());
-  }
 }
 
-bool ValueRequester::isMappedValue(const VehiclePropValue& value, std::string& propertyName) {
-  return mConfigProvider->getMappedSource(value.prop, value.areaId, propertyName);
-}
 
 void ValueRequester::handleSubscriptionEvents(const std::vector<SocketEvent> events){
   if (mPropertyChangeCallback) {
@@ -248,16 +246,22 @@ void ValueRequester::handleSubscriptionEvents(const std::vector<SocketEvent> eve
   }
 }
 
-std::unique_ptr<BaseClient> ValueRequester::getClient() const {
-  std::unique_ptr<BaseClient> client;
-  switch(mConfigProvider->getDataStorageProtocolType()) {
+static std::unique_ptr<BaseClient> createClient(const ConnectionConfig& connection) {
+  switch (connection.protocol) {
+    case DataStorageProtocolType::GRPC:
+      ALOGI("Connection %s: grpc is activated", connection.name.c_str());
+      return std::make_unique<GrpcClient>(connection.serverIp, connection.serverPort);
     case DataStorageProtocolType::WEBSOCKET:
     default:
-      client = std::make_unique<WebSocketClient>(mConfigProvider->getServerIp(), mConfigProvider->getServerPort());
-      ALOGI("Service type websocket is activated");
-      break;
+      ALOGI("Connection %s: websocket is activated", connection.name.c_str());
+      return std::make_unique<WebSocketClient>(connection.serverIp, connection.serverPort);
   }
-  return client;
+}
+
+void ValueRequester::createClients() {
+  for (const auto& connection : mConfigProvider->getConnections()) {
+    mClients.push_back(createClient(connection));
+  }
 }
 
 }  // namespace vehicle

@@ -7,7 +7,8 @@ namespace automotive {
 namespace vehicle {
 
 enum DataStorageProtocolType {
-    WEBSOCKET
+    WEBSOCKET,
+    GRPC
 };
 
 }  // namespace vehicle

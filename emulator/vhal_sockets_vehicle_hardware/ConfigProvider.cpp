@@ -11,14 +11,12 @@ namespace vehicle {
 static const std::string STR_PROPERTY_ID("propertyId");
 static const std::string STR_ACCESS("access");
 static const std::string STR_CHANGE_MODE("changeMode");
-static const std::string STR_AREA_TYPE("areaType");
 static const std::string STR_SOURCES("sources");
 static const std::string STR_PROTOCOL_TYPE("protocol");
 static const std::string STR_SERVER_IP("serverIp");
 static const std::string STR_SERVER_PORT("serverPort");
-static const std::string STR_PROPERTIES("properties");
-static const std::string STR_STANDARDS("standards");
-static const std::string STR_VENDORS("vendors");
+static const std::string STR_CONNECTIONS("connections");
+static const std::string STR_NAME("name");
 static const std::string STR_FORMULA("formula");
 
 static const std::string CONFIG_DIR("/vendor/etc/vhalmap/");
@@ -26,8 +24,10 @@ static const std::string CONFIG_MAP("value_map.json");
 static const std::string CONFIG_APP("app_config.json");
 
 const std::string STR_PROTOCOL_TYPE_WS("websocket");
+const std::string STR_PROTOCOL_TYPE_GRPC("grpc");
 const std::unordered_map<std::string, DataStorageProtocolType> STR_TO_PROTOCOL_TYPE = {
       {STR_PROTOCOL_TYPE_WS, DataStorageProtocolType::WEBSOCKET},
+      {STR_PROTOCOL_TYPE_GRPC, DataStorageProtocolType::GRPC},
   };
 
 
@@ -37,9 +37,12 @@ ConfigProvider::ConfigProvider() {
 }
 
 void ConfigProvider::init() {
-
-  tryLoadAppConfig();
-  tryLoadVhalProperties();
+  if (!tryLoadAppConfig()) {
+    ALOGE("Failed to load app config, no connection will be available");
+  }
+  if (!tryLoadVhalProperties()) {
+    ALOGE("Failed to load VHAL properties, no property will be available");
+  }
 }
 
 bool ConfigProvider::tryLoadVhalProperties() {
@@ -71,6 +74,7 @@ bool ConfigProvider::tryLoadVhalProperties() {
       };
 
       mMappedValues[propIdAreaId] = source;
+      mMappedSources[source] = propIdAreaId;
       ALOGI("VHAL properties mapped: %x(%d) %x %s", propertyId, propertyId, areaId, source.c_str());
 
       VehicleAreaConfig areaConfig = {
@@ -121,14 +125,13 @@ bool ConfigProvider::getValueInfo(int propertyId, int areaId, std::string& sourc
 }
 
 bool ConfigProvider::getMappedProperty(const std::string& source, int& propertyId, int& areaId) const {
-  for (auto& it : mMappedValues) {
-    if (it.second.compare(source) == 0) {
-        propertyId = it.first.propId;
-        areaId = it.first.areaId;
-        return true;
-    }
+  auto it = mMappedSources.find(source);
+  if (it == mMappedSources.end()) {
+    return false;
   }
-  return false;
+  propertyId = it->second.propId;
+  areaId = it->second.areaId;
+  return true;
 }
 
 const std::vector<std::string> ConfigProvider::getMappedNames() const {
@@ -151,31 +154,58 @@ bool ConfigProvider::tryLoadAppConfig() {
     return false;
   }
 
-  Json::Value jsonServerIp = jsonRoot[STR_SERVER_IP];
+  mConnections.clear();
+
+  Json::Value jsonConnections = jsonRoot[STR_CONNECTIONS];
+  for (Json::Value::ArrayIndex i = 0; i < jsonConnections.size(); i++) {
+    ConnectionConfig connection;
+    if (parseConnection(jsonConnections[i], connection)) {
+      ALOGI("Connection loaded: %s %s %s:%d", connection.name.c_str(),
+            getDataStorageProtocolTypeStr(connection.protocol).c_str(),
+            connection.serverIp.c_str(), connection.serverPort);
+      mConnections.push_back(connection);
+    }
+  }
+
+  if (mConnections.empty()) {
+    ALOGE("No usable connection found in server config");
+    return false;
+  }
+
+  return true;
+}
+
+bool ConfigProvider::parseConnection(const Json::Value& jsonConnection, ConnectionConfig& connection) {
+  Json::Value jsonServerIp = jsonConnection[STR_SERVER_IP];
   if (jsonServerIp.empty()) {
     ALOGE("Failed to load server ip");
     return false;
   }
-  mServerIp = jsonServerIp.asString();
+  connection.serverIp = jsonServerIp.asString();
 
-  Json::Value jsonServerPort = jsonRoot[STR_SERVER_PORT];
+  Json::Value jsonServerPort = jsonConnection[STR_SERVER_PORT];
   if (jsonServerPort.empty()) {
     ALOGE("Failed to load server port");
     return false;
   }
-  mServerPort = jsonServerPort.asInt();
+  connection.serverPort = jsonServerPort.asInt();
 
-  Json::Value jsonProtocolType = jsonRoot[STR_PROTOCOL_TYPE];
+  Json::Value jsonProtocolType = jsonConnection[STR_PROTOCOL_TYPE];
   if (jsonProtocolType.empty()) {
     ALOGE("Failed to load service type");
     return false;
   }
   std::string strProtocolType = jsonProtocolType.asString();
-  if (!setProtocolType(strProtocolType)) {
-    ALOGE("Wrong service type %s, should be one of %s",
-           strProtocolType.c_str(), STR_PROTOCOL_TYPE_WS.c_str());
+  auto it = STR_TO_PROTOCOL_TYPE.find(strProtocolType);
+  if (it == STR_TO_PROTOCOL_TYPE.end()) {
+    ALOGE("Wrong service type %s, should be one of %s, %s",
+           strProtocolType.c_str(), STR_PROTOCOL_TYPE_WS.c_str(), STR_PROTOCOL_TYPE_GRPC.c_str());
     return false;
   }
+  connection.protocol = it->second;
+
+  Json::Value jsonName = jsonConnection[STR_NAME];
+  connection.name = jsonName.empty() ? strProtocolType : jsonName.asString();
 
   return true;
 }
@@ -193,21 +223,11 @@ bool ConfigProvider::tryLoadJsonFile(const std::string& path, Json::Value& root)
   return true;
 }
 
-bool ConfigProvider::setProtocolType(const std::string& strProtocolType) {
-    auto it = STR_TO_PROTOCOL_TYPE.find(strProtocolType);
-    if (it != STR_TO_PROTOCOL_TYPE.end()) {
-      mProtocolType = it->second;
-      return true;
-    } else {
-      return false;
-    }
-}
-
-std::string ConfigProvider::getDataStorageProtocolTypeStr() const{
+std::string ConfigProvider::getDataStorageProtocolTypeStr(DataStorageProtocolType protocolType) const {
   std::string protocolStr{"unknown"};
   for (std::unordered_map<std::string, DataStorageProtocolType>::const_iterator it = STR_TO_PROTOCOL_TYPE.begin();
               it != STR_TO_PROTOCOL_TYPE.end(); ++it) {
-    if (it->second == mProtocolType) {
+    if (it->second == protocolType) {
       protocolStr = it->first;
       break;
     }

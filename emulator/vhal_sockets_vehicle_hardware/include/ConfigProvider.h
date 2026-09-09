@@ -24,32 +24,36 @@ namespace hardware {
 namespace automotive {
 namespace vehicle {
 
+struct ConnectionConfig {
+  std::string name;
+  DataStorageProtocolType protocol;
+  std::string serverIp;
+  int serverPort;
+};
+
 class ConfigProvider {
 
   public:
     ConfigProvider();
 
   public:
-    std::vector<VehiclePropConfig> getProperties() const {
+    const std::vector<VehiclePropConfig>& getProperties() const {
       return mProperties;
     }
     const std::vector<std::string> getMappedNames() const;
     bool getMappedSource(int propertyId, int areaId, std::string& source) const;
     bool getMappedProperty(const std::string& source, int& propertyId, int& areaId) const;
-    const std::string& getServerIp() { return mServerIp; }
-    int getServerPort() { return mServerPort; }
+    const std::vector<ConnectionConfig>& getConnections() const { return mConnections; }
     bool getValueInfo(int propertyId, int areaId, std::string& source) const;
-    DataStorageProtocolType getDataStorageProtocolType() const { return mProtocolType; }
-    std::string getDataStorageProtocolTypeStr() const;
+    std::string getDataStorageProtocolTypeStr(DataStorageProtocolType protocolType) const;
     Json::Value getFormula(int propertyId) const;
 
 
   private:
     std::vector<VehiclePropConfig> mProperties;
     std::unordered_map<PropIdAreaId, std::string, PropIdAreaIdHash> mMappedValues;
-    std::string mServerIp;
-    int mServerPort;
-    DataStorageProtocolType mProtocolType;
+    std::unordered_map<std::string, PropIdAreaId> mMappedSources;
+    std::vector<ConnectionConfig> mConnections;
     std::unordered_map<int, Json::Value> mPropertyFormulas;
 
 
@@ -58,7 +62,7 @@ class ConfigProvider {
     bool tryLoadVhalProperties();
     bool tryLoadAppConfig();
     bool tryLoadJsonFile(const std::string& path, Json::Value& root);
-    bool setProtocolType(const std::string& strProtocolType);
+    bool parseConnection(const Json::Value& jsonConnection, ConnectionConfig& connection);
 
 };
 

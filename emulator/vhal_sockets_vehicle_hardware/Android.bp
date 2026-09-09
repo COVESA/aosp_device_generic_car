@@ -13,11 +13,65 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+genrule {
+    name: "KuksaValProtoStub_h",
+    tools: [
+        "aprotoc",
+        "protoc-gen-grpc-cpp-plugin",
+    ],
+    cmd: "$(location aprotoc) -Idevice/generic/car/emulator/vhal_sockets_vehicle_hardware/external/kuksa/proto -Iexternal/protobuf/src --cpp_out=$(genDir) $(location external/kuksa/proto/kuksa/val/v1/types.proto) $(location external/kuksa/proto/kuksa/val/v1/val.proto) && " +
+        "$(location aprotoc) -Idevice/generic/car/emulator/vhal_sockets_vehicle_hardware/external/kuksa/proto -Iexternal/protobuf/src --plugin=protoc-gen-grpc=$(location protoc-gen-grpc-cpp-plugin) --grpc_out=$(genDir) $(location external/kuksa/proto/kuksa/val/v1/val.proto)",
+    srcs: [
+        "external/kuksa/proto/kuksa/val/v1/types.proto",
+        "external/kuksa/proto/kuksa/val/v1/val.proto",
+        ":libprotobuf-internal-protos",
+    ],
+    out: [
+        "kuksa/val/v1/types.pb.h",
+        "kuksa/val/v1/val.pb.h",
+        "kuksa/val/v1/val.grpc.pb.h",
+    ],
+    visibility: ["//visibility:private"],
+}
+
+genrule {
+    name: "KuksaValProtoStub_cc",
+    tools: [
+        "aprotoc",
+        "protoc-gen-grpc-cpp-plugin",
+    ],
+    cmd: "$(location aprotoc) -Idevice/generic/car/emulator/vhal_sockets_vehicle_hardware/external/kuksa/proto -Iexternal/protobuf/src --cpp_out=$(genDir) $(location external/kuksa/proto/kuksa/val/v1/types.proto) $(location external/kuksa/proto/kuksa/val/v1/val.proto) && " +
+        "$(location aprotoc) -Idevice/generic/car/emulator/vhal_sockets_vehicle_hardware/external/kuksa/proto -Iexternal/protobuf/src --plugin=protoc-gen-grpc=$(location protoc-gen-grpc-cpp-plugin) --grpc_out=$(genDir) $(location external/kuksa/proto/kuksa/val/v1/val.proto)",
+    srcs: [
+        "external/kuksa/proto/kuksa/val/v1/types.proto",
+        "external/kuksa/proto/kuksa/val/v1/val.proto",
+        ":libprotobuf-internal-protos",
+    ],
+    out: [
+        "kuksa/val/v1/types.pb.cc",
+        "kuksa/val/v1/val.pb.cc",
+        "kuksa/val/v1/val.grpc.pb.cc",
+    ],
+    visibility: ["//visibility:private"],
+}
+
 cc_library {
     name: "SocketsVehicleHardware",
     vendor: true,
     cflags: ["-DENABLE_VENDOR_CLUSTER_PROPERTY_FOR_TESTING", "-Wno-implicit-fallthrough", "-fexceptions", "-Wno-unused-parameter"],
-    srcs: ["*.cpp", "external/easywsclient/*.cpp"],
+    srcs: ["*.cpp", "external/easywsclient/easywsclient.cpp"],
+    generated_headers: [
+        "KuksaValProtoStub_h",
+    ],
+    export_generated_headers: [
+        "KuksaValProtoStub_h",
+    ],
+    generated_sources: [
+        "KuksaValProtoStub_cc",
+    ],
+    include_dirs: [
+        "external/protobuf/src",
+    ],
     header_libs: [
         "IVehicleHardware",
     ],
@@ -34,7 +88,8 @@ cc_library {
         "liblog",
         "libutils",
         "libjsoncpp",
-        "libprotobuf-cpp-lite",
+        "libprotobuf-cpp-full",
+        "libgrpc++",
         "libbinder_ndk",
         "device.generic.car.emulator-aidl-V2-ndk",
     ],

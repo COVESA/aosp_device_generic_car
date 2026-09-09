@@ -7,6 +7,7 @@
 #include <atomic>
 #include <condition_variable>
 #include <memory>
+#include <vector>
 
 #include <easywsclient.hpp>
 
@@ -50,6 +51,7 @@ public:
     void readSubscription(const Json::Value& responseJson);
     Response* sendValueSync(const Json::Value& request, int timeoutSeconds = TIMEOUT_SECONDS);
     bool connect();
+    void resubscribeAll();
     void closeSubscriptions() override;
     void close();
 
@@ -60,6 +62,7 @@ public:
     std::unordered_map<std::string, std::shared_ptr<PendingRequestJson>> mPending;
     std::thread mInitThread;
     std::atomic<bool> mRunning{false};
+    std::vector<std::string> mSubscribedPaths;
 };
 
 }  // namespace vehicle

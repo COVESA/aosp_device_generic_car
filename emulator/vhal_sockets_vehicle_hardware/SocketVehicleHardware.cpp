@@ -81,11 +81,15 @@ DumpResult SocketVehicleHardware::dump(const std::vector<std::string>& options) 
     loadFile(path, result.buffer);
   } else if(EqualsIgnoreCase(option, "--config")) {
     std::string data("config:\n");
-    data.append("Server :");
-    data.append(mConfigProvider->getServerIp());
-    data.append(" : ");
-    data.append(std::to_string(mConfigProvider->getServerPort()));
-    data.append("\n");
+    for (const auto& connection : mConfigProvider->getConnections()) {
+      data.append("Server ");
+      data.append(connection.name);
+      data.append(" :");
+      data.append(connection.serverIp);
+      data.append(" : ");
+      data.append(std::to_string(connection.serverPort));
+      data.append("\n");
+    }
     result.buffer = data;
   } else if(EqualsIgnoreCase(option, "--properties")) {
     std::string data("Properties:\n");
@@ -102,9 +106,12 @@ DumpResult SocketVehicleHardware::dump(const std::vector<std::string>& options) 
     result.buffer = data;
   } else if(EqualsIgnoreCase(option, "--protocol")) {
     std::string data("protocol: ");
-    std::string protocolStr = mConfigProvider->getDataStorageProtocolTypeStr();
-    data.append(protocolStr);
-    data.append("\n");
+    for (const auto& connection : mConfigProvider->getConnections()) {
+      data.append(connection.name);
+      data.append(" = ");
+      data.append(mConfigProvider->getDataStorageProtocolTypeStr(connection.protocol));
+      data.append("\n");
+    }
     result.buffer = data;
   } else {
     result.buffer = "Unknown commands";

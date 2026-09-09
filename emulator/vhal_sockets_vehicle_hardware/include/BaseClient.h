@@ -3,9 +3,9 @@
 
 #include <functional>
 #include <mutex>
-#include <queue>
 #include <string>
 #include <thread>
+#include <vector>
 #include <json/json.h>
 
 namespace android {
@@ -42,11 +42,6 @@ struct SocketEvent {
 };
 
 class BaseClient {
-  protected:
-  struct Subscription {
-    int client;
-    std::string propertyName;
-  };
 
   public:
     BaseClient(const std::string& serverIp, const int serverPort) : mServerIp(serverIp), mServerPort(serverPort) {}
@@ -68,7 +63,6 @@ class BaseClient {
     const std::string& mServerIp;
     const int mServerPort;
     std::shared_ptr<std::function<void(std::vector<SocketEvent>)>> mSubscriptionCallback = nullptr;
-    std::queue<Subscription*> mSubscriptions;
     std::mutex mSubscriptionLock;
 };
 

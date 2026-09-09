@@ -101,12 +101,15 @@ namespace vehicle {
       void registerPropertyChangeCallback(std::shared_ptr<PropertyChangeCallback> propertyChangeCallback) {
         mPropertyChangeCallback = propertyChangeCallback;
 
-        mClient->registerSubscriptionCallback(std::make_shared<std::function<void(std::vector<SocketEvent>)>>([this](std::vector<SocketEvent> properties) {this->handleSubscriptionEvents(properties);}));
+        auto subscriptionCallback = std::make_shared<std::function<void(std::vector<SocketEvent>)>>([this](std::vector<SocketEvent> properties) {this->handleSubscriptionEvents(properties);});
+        for (auto& client : mClients) {
+          client->registerSubscriptionCallback(subscriptionCallback);
+        }
       }
 
     private:
       const std::shared_ptr<ConfigProvider> mConfigProvider;
-      std::unique_ptr<BaseClient> mClient;
+      std::vector<std::unique_ptr<BaseClient>> mClients;
       bool mIsRequestsThreadPoolRunning = true;
       std::vector<std::thread> mRequestsThreadPool;
       std::mutex mRequestLock;
@@ -121,9 +124,8 @@ namespace vehicle {
       void executeSetRequest(TypedRequest<SetValueRequest, SetValuesCallback>* request);
       void executeGetRequest(TypedRequest<GetValueRequest, GetValuesCallback>* request);
       void executeSubscribeRequest(TypedRequest<SubscribeValueRequest, SubscribeValueCallback>* request);
-      bool isMappedValue(const VehiclePropValue& value, std::string& propertyName);
       void handleSubscriptionEvents(const std::vector<SocketEvent> events);
-      std::unique_ptr<BaseClient> getClient() const;
+      void createClients();
   };
 }  // namespace vehicle
 }  // namespace automotive
